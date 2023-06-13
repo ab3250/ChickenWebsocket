@@ -1,0 +1,48 @@
+<html>
+  <head title="ws test">
+    <script type='text/javascript'>
+   // console.log("test")
+  //const interval = setInterval(function() {
+  //  ws.send("")    
+  //}, 1000)
+
+      // ws = new WebSocket("wss://localhost:8000/web-socket")
+      ws = new WebSocket("ws://localhost:8000/web-socket")
+      ws.onmessage = function (evt) {
+          console.log("got ws message: ", evt.data)
+      }
+      ws.onerror = function(evt) {
+          console.log("onerror called:", evt.data)
+      }
+      ws.onclose = function(evt) {
+          console.log("onclose called:", evt.reason)
+      }
+      ws.onopen = function(evt) {
+          console.log ("onopen called")
+          ws.send ("some data\n")
+      }
+
+ function mode (btnID) {
+    if(btnID === "close"){
+      ws.onclose()
+    }else{
+    ws.send(btnID)}
+  }
+  function btnclk(){
+    mode(event.target.id)
+  }
+
+  </script>
+  </head>
+  <body>
+    <div id="top-div">
+      <div class="">
+        <button id="button1" class="" onclick="btnclk()">Button 1</button>
+        <button id="button2" class="" onclick="btnclk()">Button 2</button>
+        <button id="close" class="" onclick="btnclk()">close</button>
+      </div> 
+      <div id="payload"></div>
+      <div id="out"></div>
+    </div>
+  </body>
+</html>
