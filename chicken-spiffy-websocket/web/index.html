@@ -8,38 +8,38 @@
 
       // ws = new WebSocket("wss://localhost:8000/web-socket")
       ws = new WebSocket("ws://localhost:8000/web-socket")
-      ws.onmessage = function (evt) {
-          console.log("got ws message: ", evt.data)
+      ws.onmessage = function (event) {
+          console.log("got ws message: ", event.data)
       }
-      ws.onerror = function(evt) {
-          console.log("onerror called:", evt.data)
+      ws.onerror = function(event) {
+          console.log("onerror called:", event)
       }
-      ws.onclose = function(evt) {
-          console.log("onclose called:", evt.reason)
+      ws.onclose = function(event) {
+          console.log("onclose called:", event)
       }
-      ws.onopen = function(evt) {
-          console.log ("onopen called")
+      ws.onopen = function(event) {
+          console.log ("onopen called",event)
           ws.send ("some data\n")
       }
 
  function mode (btnID) {
     if(btnID === "close"){
-      ws.onclose()
+      ws.close(1000)
     }else{
     ws.send(btnID)}
   }
-  function btnclk(){
+  function btnclk(event){
     mode(event.target.id)
   }
-
   </script>
+  
   </head>
   <body>
     <div id="top-div">
       <div class="">
-        <button id="button1" class="" onclick="btnclk()">Button 1</button>
-        <button id="button2" class="" onclick="btnclk()">Button 2</button>
-        <button id="close" class="" onclick="btnclk()">close</button>
+        <button id="button1" class="" onclick="btnclk(event)">Button 1</button>
+        <button id="button2" class="" onclick="btnclk(event)">Button 2</button>
+        <button id="close" class="" onclick="btnclk(event)">close</button>
       </div> 
       <div id="payload"></div>
       <div id="out"></div>

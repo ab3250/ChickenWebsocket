@@ -34,6 +34,34 @@
   (comparse)
 )
 
+
+
+(define-inline (neq? obj1 obj2) (not (eq? obj1 obj2)))
+
+(define current-websocket (make-parameter #f))
+(define ping-interval (make-parameter 15))
+(define close-timeout (make-parameter 5))
+(define connection-timeout (make-parameter 58)) ; a little grace period from 60s
+(define accept-connection (make-parameter (lambda (origin) #t)))
+(define drop-incoming-pings (make-parameter #t))
+(define propagate-common-errors (make-parameter #f))
+(define access-denied ; TODO test
+  (make-parameter (lambda () (send-status 'forbidden "<h1>Access denied</h1>"))))
+
+               (define (shift i r)
+                 (if (< i 0)
+                     r
+                     (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
+                                       r))))
+
+(define max-frame-size (make-parameter 1048576)) ; 1MiB
+(define max-message-size
+  (make-parameter 1048576 ; 1MiB
+                  (lambda (v)
+                    (if (> v 1073741823) ; max int size for unmask/utf8 check
+                        (signal (make-property-condition 'out-of-range))
+                        v))))
+
 (define (opcode->optype op)
   (case op
     ((0) 'continuation)
@@ -54,6 +82,10 @@
     ('pong             #xa)
     (else (signal (make-websocket-exception
                    (make-property-condition 'invalid-optype))))))
+
+
+(define (control-frame? optype)
+  (or (eq? optype 'ping) (eq? optype 'pong) (eq? optype 'connection-close)))
 
 (define (string->bytes str)
   ;; XXX this wont work unless it's all ascii.
@@ -143,3 +175,66 @@
           (string-append client-key "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
          (key-and-magic-sha1 (sha1-sum key-and-magic)))
     (base64-encode key-and-magic-sha1)))
+
+    (define (valid-utf8? s)
+  (or (let ((len (string-length s)))
+         ; Try to validate as an ascii string first. Its essentially
+         ; free, doesn't generate garbage and is many, many times
+         ; faster than the general purpose validator.
+         (= 1
+            ((foreign-lambda* int ((size_t ws_utlen) (scheme-pointer ws_uts))
+"
+    if (ws_utlen > UINT_MAX) { return -1; }
+
+    int i;
+    for (i = ws_utlen; i != 0; --i)
+    {
+        if (*((unsigned char*)ws_uts++) > 127)
+        {
+            C_return(0);
+        }
+    }
+
+    C_return(1);
+") len s)))
+      (parse utf8-string (->parser-input s))))
+
+(define (close-code->integer s)
+  (if (string-null? s)
+      1000
+      (+ (arithmetic-shift (char->integer (string-ref s 0)) 8)
+         (char->integer (string-ref s 1)))))
+
+
+(define (close-reason->close-code reason)
+    (case reason
+      ('normal 1000)
+      ('going-away 1001)
+      ('protocol-error 1002)
+      ('unknown-data-type 1003)
+      ('invalid-data 1007)
+      ('violated-policy 1008)
+      ('message-too-large 1009)
+      ('unexpected-error 1011)
+      (else (set! invalid-close-reason reason)
+            (close-reason->close-code 'unexpected-error))))
+
+; (define (close-code-string->close-reason s)
+;   (let ((c (close-code->integer s)))
+;     (case c
+;       ((1000) 'normal)
+;       ((1001) 'going-away)
+;       ((1002) 'protocol-error)
+;       ((1003) 'unknown-data-type)
+;       ((1007) 'invalid-data)
+;       ((1008) 'violated-policy)
+;       ((1009) 'message-too-large)
+;       ((1010) 'extension-negotiation-failed)
+;       ((1011) 'unexpected-error)
+;       (else
+;        (if (and (>= c 3000) (< c 5000))
+;            'unknown
+;            'invalid-close-code)))))
+
+; (define (valid-close-code? s)
+;   (neq? 'invalid-close-code (close-code-string->close-reason s)))
