@@ -1,18 +1,32 @@
-(import (chicken base)
-(chicken foreign)
-(chicken ports)
-;(chicken )
+(module websockets
+  (
+   ; parameters
+   ping-interval close-timeout
+   connection-timeout accept-connection
+   drop-incoming-pings propagate-common-errors
+   max-frame-size max-message-size
 
- scheme ;data-structures extras ports posix foreign
+   ; high level API
+   with-websocket with-concurrent-websocket
+   send-message receive-message current-websocket
+
+   ; low level API
+   ;; send-frame read-frame read-frame-payload
+   ;; receive-fragments valid-utf8?
+   ;; control-frame? upgrade-to-websocket
+   ;; current-websocket unmask close-websocket
+   ;; process-fragments
+
+   ;; ; fragment
+   ;; make-fragment fragment? fragment-payload fragment-length
+   ;; fragment-masked? fragment-masking-key fragment-last?
+   ;; fragment-optype
+   )
+
+(import (chicken base) scheme data-structures extras ports posix foreign
         srfi-13 srfi-14 srfi-18)
 (importsrfi-1 srfi-4 spiffy intarweb uri-common base64 simple-sha1
      mailbox comparse)
-
-(define (shifty i r)
-                 (if (< i 0)
-                     r
-                     (shifty (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
-                                       r))))
 
 (define-inline (neq? obj1 obj2) (not (eq? obj1 obj2)))
 
@@ -234,8 +248,12 @@
                      (bl1 (read-byte inbound-port)))
                  (set! frame-payload-length (+ (arithmetic-shift bl0 8) bl1))))
               ((= frame-payload-length 127)
-               
-               (set! frame-payload-length (shifty 7 0 inbound-port))))
+               (define (shift i r)
+                 (if (< i 0)
+                     r
+                     (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
+                                       r))))
+               (set! frame-payload-length (shift 7 0))))
         (when (or (> frame-payload-length (max-frame-size))
                   (> (+ frame-payload-length total-size) (max-message-size)))
               (signal (make-websocket-exception
@@ -249,8 +267,10 @@
                       (vector fm0 fm1 fm2 fm3))
                     #f)))
           (cond
-           ((or (eq? frame-optype 'text) (eq? frame-optype 'binary)
-                (eq? frame-optype 'continuation) (eq? frame-optype 'ping)
+           ((or (eq? frame-optype 'text)
+                (eq? frame-optype 'binary)
+                (eq? frame-optype 'continuation)
+                (eq? frame-optype 'ping)
                 (eq? frame-optype 'pong))
             (make-fragment
              (read-frame-payload inbound-port frame-payload-length)
@@ -505,7 +525,7 @@
 
     ; make sure the request meets the spec for websockets
     (cond ((not (and (member 'upgrade (header-values 'connection headers))
-                     (string-ci=? (car (header-value 'upgrade headers '(""))) "websocket")))
+                     (string-ci= (car (header-value 'upgrade headers '(""))) "websocket")))
            (signal (make-websocket-exception
                     (make-property-condition 'missing-upgrade-header))))
           ((not (string= (header-value 'sec-websocket-version headers "") "13"))
@@ -600,4 +620,4 @@
 (define (upgrade-to-websocket #!optional (concurrent #f))
   (websocket-accept concurrent))
 
-
+)

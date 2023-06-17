@@ -1,19 +1,24 @@
+;#TOOD
+;change send-message to match send-frame and websockets format
+
 (include "server-lib.scm")
 
 (define-record-type websocket
-  (make-websocket inbound-port outbound-port send-bytes read-frame-proc)
+  (make-websocket inbound-port outbound-port send-bytes read-frame-proc state)
   websocket?
   (inbound-port websocket-inbound-port)
   (outbound-port websocket-outbound-port)
-  (send-bytes websocket-send-bytes)
-  (read-frame-proc websocket-read-frame-proc))
+  (send-bytes send-message-bytes)
+  (read-frame-proc websocket-read-frame-proc)
+  (state websocket-state set-websocket-state!))
 
 
-(define (websocket-send ws data)
+(define (send-message data #!optional (optype 'text) (ws (current-websocket)))
   ;; XXX break up large data into multiple frames?
-  (websocket-send-frame ws 'text data #t))
+    (optype->opcode optype) ; triggers error if invalid
+  (send-frame ws optype data #t))
 
-; (define (websocket-send data #!optional (optype 'text) ws)
+; (define (send-message data #!optional (optype 'text) ws)
 ;   ;; TODO break up large data into multiple frames?
 ;   (optype->opcode optype) ; triggers error if invalid
 ;   (send-frame ws optype data #t))
@@ -84,23 +89,28 @@
                  (websocket-read-frame-payload inbound-port frame-payload-length
                                           frame-masked frame-masking-key))
        
-           ((eq? frame-optype 'connection-close)
-                  (websocket-send-frame ws 'connection-close
-                                        (u8vector 3 (close-reason->close-code close-reason))
-                                        #t));;
+           ((eq? frame-optype 'connection-close) 
+            (display "closeDebug")
+           ;;#TODO: where does it go
+              (send-frame ws 'connection-close  (u8vector 3000) #f)
+              (set-websocket-state! 'close)
+              #t) ;<- return #t
+               ;(u8vector (* 3 (close-reason->close-code 'normal)))
+               
            
            ((eq? frame-optype 'pong)
+           
             ;; pong frame
             ;; we aren't required to respond to an unsolicited pong
-            #t)
-           (eq? frame-) 
+            #t);<- return #t
+           ;(eq? frame-) 
            (else
             (error "websocket got unhandled opcode: " frame-optype 'other);;;chcnged
             #f))))))))
 
 
-; (define (websocket-close ws)
- ; (websocket-send-frame ws 'connection-close (u8vector 3 1000) #t))
+ ;(define (websocket-close ws)
+ ; (send-frame ws 'connection-close (u8vector 3 1000) #t))
 
 
 
@@ -109,13 +119,6 @@
          (car (vector-ref header-content 0)))
        header-contents))
 
-
- (header-unparsers
-  (alist-update! 'sec-websocket-accept
-                 sec-websocket-accept-unparser
-                 (header-unparsers)))
-
-
 (define (websocket-accept)
   (let* ((headers (request-headers (current-request)))
          (client-key (header-value 'sec-websocket-key headers))
@@ -123,7 +126,22 @@
          (ws (make-websocket
               (request-port (current-request))
               (response-port (current-response))
-              websocket-send websocket-read-frame)))
+              send-message
+              websocket-read-frame
+              'open))
+              ;;;;
+       (ping-thread
+          (make-thread
+           (lambda ()
+             (let loop ()              
+              (display (websocket-state ws))
+               (thread-sleep! (ping-interval))
+               (when (eq? (websocket-state ws) 'open)
+                     (send-message "" 'ping ws)
+                     (loop))))
+           "ping thread"))
+       ;;;;
+                            )
     (with-headers
      `((upgrade ("WebSocket" . #f))
        (connection (upgrade . #t))
@@ -131,6 +149,11 @@
      (lambda ()
        (send-response status: 'switching-protocols)
        (flush-output (response-port (current-response)))))
+       ;;;
+       (when (> (ping-interval) 0)
+          ;(thread-start! ping-thread)
+          )
+       
     ws))
 
 
@@ -148,17 +171,22 @@
 
 
 (define (application-code ws)
-  ;(websocket-send ws (string->bytes "testing"))
+  ;(send-message ws (string->bytes "testing"))
   (let loop ((data (websocket-read-frame ws)))
-    (write (apply string (map integer->char (u8vector->list data))))
+    ;(write (apply string (map integer->char (u8vector->list data))))
 
     (newline)
-    (websocket-send ws data)
+    ;(send-message ws data)
+    (send-message data 'text ws)
    ; (websocket-close ws)
     (loop (websocket-read-frame ws))))
 
-(vhost-map `(("localhost" . ,(make-websocket-handler application-code))))
+(header-unparsers
+  (alist-update! 'sec-websocket-accept
+                 sec-websocket-accept-unparser
+                 (header-unparsers)))
 
+(vhost-map `(("localhost" . ,(make-websocket-handler application-code))))
 (server-port 8000)
 ;; (root-path "./web")
 ;(debug-log (current-error-port))

@@ -23,10 +23,13 @@
    ;; fragment-optype
    )
 
-(import (chicken base) scheme data-structures extras ports posix foreign
-        srfi-13 srfi-14 srfi-18)
-(importsrfi-1 srfi-4 spiffy intarweb uri-common base64 simple-sha1
-     mailbox comparse)
+(import 
+  (scheme) (srfi-1) (srfi-13) (srfi-18) (srfi-69) (chicken base) (chicken string) (chicken time)
+  (chicken sort) (chicken io) (chicken file posix) (chicken format) (chicken process-context)
+  (chicken process-context posix) (chicken port) (chicken file) (chicken tcp) (chicken condition)
+  (chicken pathname) (chicken bitwise) (intarweb) (uri-common) (sendfile)  (srfi-4) (spiffy) (base64)
+  (simple-sha1) (chicken blob) (chicken foreign) (chicken port) (srfi-14) (mailbox) (comparse)
+)
 
 (define-inline (neq? obj1 obj2) (not (eq? obj1 obj2)))
 
@@ -222,6 +225,12 @@
     (read-string! frame-payload-length masked-data inbound-port)
     masked-data))
 
+(define (shift i r inbound-port)
+  (if (< i 0)
+      r
+      (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
+                        r))))
+
 (define (read-frame total-size ws)
   (let* ((inbound-port (websocket-inbound-port ws))
          (b0 (read-byte inbound-port)))
@@ -248,12 +257,7 @@
                      (bl1 (read-byte inbound-port)))
                  (set! frame-payload-length (+ (arithmetic-shift bl0 8) bl1))))
               ((= frame-payload-length 127)
-               (define (shift i r)
-                 (if (< i 0)
-                     r
-                     (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
-                                       r))))
-               (set! frame-payload-length (shift 7 0))))
+               (set! frame-payload-length (shift 7 0 inbound-port))))
         (when (or (> frame-payload-length (max-frame-size))
                   (> (+ frame-payload-length total-size) (max-message-size)))
               (signal (make-websocket-exception
@@ -267,10 +271,8 @@
                       (vector fm0 fm1 fm2 fm3))
                     #f)))
           (cond
-           ((or (eq? frame-optype 'text)
-                (eq? frame-optype 'binary)
-                (eq? frame-optype 'continuation)
-                (eq? frame-optype 'ping)
+           ((or (eq? frame-optype 'text) (eq? frame-optype 'binary)
+                (eq? frame-optype 'continuation) (eq? frame-optype 'ping)
                 (eq? frame-optype 'pong))
             (make-fragment
              (read-frame-payload inbound-port frame-payload-length)
@@ -286,7 +288,7 @@
                      (make-property-condition 'unhandled-optype
                                               'optype frame-optype)))))))))))
 
-(include "utf8-grammar.scm")
+(include "../utf8-grammar.scm")
 
 (define (valid-utf8? s)
   (or (let ((len (string-length s)))
@@ -621,3 +623,5 @@
   (websocket-accept concurrent))
 
 )
+
+

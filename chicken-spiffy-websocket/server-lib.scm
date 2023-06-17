@@ -1,37 +1,10 @@
 (import 
-  (scheme)
-  (srfi-1)
-  (srfi-13)
-  (srfi-18)
-  (srfi-69)
-  (chicken base)
-  (chicken string)
-  (chicken time)
-  (chicken sort)
-  (chicken io)
-  (chicken file posix)
-  (chicken format)
-  (chicken process-context)
-  (chicken process-context posix)
-  (chicken port)
-  (chicken file)
-  (chicken tcp)
-  (chicken condition)
-  (chicken pathname)
-  (chicken bitwise)
-  (intarweb)
-  (uri-common)
-  (sendfile)  
-  (srfi-4)
-  (spiffy)
-  (base64)
-  (simple-sha1)
-  (chicken blob)
-  (chicken foreign)
-  (chicken port)
-  (srfi-14)
-  (mailbox)
-  (comparse)
+  (scheme) (srfi-1) (srfi-13) (srfi-18) (srfi-69) (chicken base) (chicken string) (chicken time)
+  (chicken sort) (chicken io) (chicken file posix) (chicken format) (chicken process-context)
+  (chicken process-context posix) (chicken port) (chicken file) (chicken tcp) (chicken condition)
+  (chicken pathname) (chicken bitwise) (intarweb) (uri-common) (sendfile)  (srfi-4) (base64)
+  (simple-sha1) (chicken blob) (chicken foreign) (chicken port) (srfi-14) (mailbox) (comparse)
+  ;(spiffy) 
 )
 
 
@@ -39,8 +12,8 @@
 (define-inline (neq? obj1 obj2) (not (eq? obj1 obj2)))
 
 (define current-websocket (make-parameter #f))
-(define ping-interval (make-parameter 15))
-(define close-timeout (make-parameter 5))
+(define ping-interval (make-parameter 5))
+(define close-timeout (make-parameter 5)) ;5
 (define connection-timeout (make-parameter 58)) ; a little grace period from 60s
 (define accept-connection (make-parameter (lambda (origin) #t)))
 (define drop-incoming-pings (make-parameter #t))
@@ -48,11 +21,11 @@
 (define access-denied ; TODO test
   (make-parameter (lambda () (send-status 'forbidden "<h1>Access denied</h1>"))))
 
-               (define (shift i r)
-                 (if (< i 0)
-                     r
-                     (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
-                                       r))))
+(define (shift i r)
+  (if (< i 0)
+      r
+      (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
+                        r))))
 
 (define max-frame-size (make-parameter 1048576)) ; 1MiB
 (define max-message-size
@@ -61,6 +34,15 @@
                     (if (> v 1073741823) ; max int size for unmask/utf8 check
                         (signal (make-property-condition 'out-of-range))
                         v))))
+
+
+(define (make-websocket-exception . conditions)
+  (apply make-composite-condition (append `(,(make-property-condition 'websocket))
+                                          conditions)))
+
+(define (make-protocol-violation-exception msg)
+  (make-composite-condition (make-property-condition 'websocket)
+                            (make-property-condition 'protocol-error 'msg msg)))
 
 (define (opcode->optype op)
   (case op
@@ -110,16 +92,9 @@
             (loop (cddr hexs)
                   (+ i 1)))))))
 
-(define (make-websocket-exception . conditions)
-  (apply make-composite-condition (append `(,(make-property-condition 'websocket))
-                                          conditions)))
-
-(define (make-protocol-violation-exception msg)
-  (make-composite-condition (make-property-condition 'websocket)
-                            (make-property-condition 'protocol-error 'msg msg)))
 
 
-(define (websocket-send-frame ws optype data last-frame)
+(define (send-frame ws optype data last-frame)
   ; TODO this sucks
   (when (u8vector? data) (set! data (blob->string (u8vector->blob/shared data))))
   (let* ((len (if (string? data) (string-length data) (u8vector-length data)))

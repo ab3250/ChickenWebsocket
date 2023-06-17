@@ -16,14 +16,7 @@
           console.log("onerror called:", event)
       }
       ws.onclose = function(event) {
-        if (event.wasClean) {
-            console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`)
-  } else {
-    // e.g. server process killed or network down
-    // event.code is usually 1006 in this case
-    console.log(`[close] Connection died code=${event.code} reason=${event.reason}`)
-  }
-         
+          console.log("onclose called:", event)
       }
       ws.onopen = function(event) {
           console.log ("onopen called",event)
@@ -32,7 +25,7 @@
 
  function mode (btnID) {
     if(btnID === "close"){
-      ws.close(1000, "test")
+      ws.close()
     }else{
     ws.send(btnID)}
   }
