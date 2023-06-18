@@ -9,19 +9,18 @@
 
 (include "websocketsmod.scm")
 
- (set! tcp-read-timeout (make-parameter #f ))
+(set! tcp-read-timeout (make-parameter #f ))
 
-(define (string->bytes str)
-  ;; XXX this wont work unless it's all ascii.
-  (let* ((lst (map char->integer (string->list str)))
-         (bv (make-u8vector (length lst))))
-    (let loop ((lst lst)
-               (pos 0))
-      (if (null? lst) bv
-          (begin
-            (u8vector-set! bv pos (car lst))
-            (loop (cdr lst) (+ pos 1)))))))
-
+; (define (string->bytes str)
+;   ;; XXX this wont work unless it's all ascii.
+;   (let* ((lst (map char->integer (string->list str)))
+;          (bv (make-u8vector (length lst))))
+;     (let loop ((lst lst)
+;                (pos 0))
+;       (if (null? lst) bv
+;           (begin
+;             (u8vector-set! bv pos (car lst))
+;             (loop (cdr lst) (+ pos 1)))))))
 
 (define (make-websocket-handler app-code)
   (lambda (spiffy-continue)
@@ -39,13 +38,9 @@
   ;(send-message ws (string->bytes "testing"))
   (let loop ((data (receive-message ws)))
     ;(write (apply string (map integer->char (u8vector->list data))))
-
-    ;(send-message ws data)
     (send-message data 'text ws)
     ;(websocket-close ws)
     (loop (receive-message ws))))
-
-
 
 (vhost-map `(("localhost" . ,(make-websocket-handler application-code))))
 (server-port 8000)

@@ -1,11 +1,6 @@
 <html>
   <head title="ws test">
     <script type='text/javascript'>
-   // console.log("test")
-  //const interval = setInterval(function() {
-  //  ws.send("")    
-  //}, 1000)
-
       // ws = new WebSocket("wss://localhost:8000/web-socket")
       ws = new WebSocket("ws://localhost:8000/web-socket")
       ws.onmessage = function (event) {
@@ -18,24 +13,23 @@
       ws.onclose = function(event) {
         if (event.wasClean) {
             console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`)
-  } else {
-    // e.g. server process killed or network down
-    // event.code is usually 1006 in this case
-    console.log(`[close] Connection died code=${event.code} reason=${event.reason}`)
-  }
-         
+        } else {
+          // e.g. server process killed or network down
+          // event.code is usually 1006 in this case
+          console.log(`[close] Connection died code=${event.code} reason=${event.reason}`)
+        }         
       }
+
       ws.onopen = function(event) {
           console.log ("onopen called",event)
-        //  ws.send ("some data\n")
-        //  ws.send ("more data\n")
       }
 
  function mode (btnID) {
     if(btnID === "close"){
-      ws.close(1000, "test")
+      ws.close(1000, "normal")
     }else{
     ws.send(btnID)}
+    document.getElementById("payload").innerHTML=btnID
   }
   
   function btnclk(event){
@@ -51,7 +45,7 @@
         <button id="button2" class="" onclick="btnclk(event)">Button 2</button>
         <button id="close" class="" onclick="btnclk(event)">close</button>
       </div> 
-      <div id="payload"></div>
+      <div id="payload"  style="padding-top:20;padding-left:20"></div>
       <div id="out"></div>
     </div>
   </body>

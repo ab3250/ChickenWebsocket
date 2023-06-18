@@ -51,13 +51,6 @@
                         (signal (make-property-condition 'out-of-range))
                         v))))
 
-(define (shift i r inbound-port)
-  (if (< i 0)
-    r
-    (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
-                      r)inbound-port)))
-
-
 (define (make-websocket-exception . conditions)
   (apply make-composite-condition (append `(,(make-property-condition 'websocket))
                                           conditions)))
@@ -233,6 +226,11 @@
     masked-data))
 
 (define (read-frame total-size ws)
+  (define (shift i r inbound-port)
+    (if (< i 0)
+      r
+      (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
+                        r) inbound-port)))
   (let* ((inbound-port (websocket-inbound-port ws))
          (b0 (read-byte inbound-port)))
     ; we don't support reserved bits yet
