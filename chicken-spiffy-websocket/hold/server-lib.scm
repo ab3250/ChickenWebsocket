@@ -4,7 +4,7 @@
   (chicken process-context posix) (chicken port) (chicken file) (chicken tcp) (chicken condition)
   (chicken pathname) (chicken bitwise) (intarweb) (uri-common) (sendfile)  (srfi-4) (base64)
   (simple-sha1) (chicken blob) (chicken foreign) (chicken port) (srfi-14) (mailbox) (comparse)
-  ;(spiffy) 
+  (spiffy) 
 )
 
 
@@ -21,11 +21,11 @@
 (define access-denied ; TODO test
   (make-parameter (lambda () (send-status 'forbidden "<h1>Access denied</h1>"))))
 
-(define (shift i r)
+(define (shift i r inbound-port)
   (if (< i 0)
       r
       (shift (- i 1) (+ (arithmetic-shift (read-byte inbound-port) (* 8 i))
-                        r))))
+                        r) inbound-port)))
 
 (define max-frame-size (make-parameter 1048576)) ; 1MiB
 (define max-message-size
@@ -35,6 +35,16 @@
                         (signal (make-property-condition 'out-of-range))
                         v))))
 
+
+(define (unmask fragment)
+  (if (fragment-masked? fragment)
+      (let ((r (websocket-unmask-frame-payload
+                (fragment-payload fragment)
+                (fragment-length fragment)
+                (fragment-masking-key fragment))))
+             (set-fragment-masked! fragment #f)
+             r)
+      (fragment-payload fragment)))
 
 (define (make-websocket-exception . conditions)
   (apply make-composite-condition (append `(,(make-property-condition 'websocket))

@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=kill test
-Version=2.4
-Comment=
-Exec=/bin/bash -c "sudo kill -9 $(pidof test)"
-Icon=
-Terminal=true
-Type=Application
